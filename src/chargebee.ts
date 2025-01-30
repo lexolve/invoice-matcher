@@ -48,21 +48,19 @@ export const recordInvoicePayment = (invoiceId: string, amount: number): Effect.
         transaction: {
           amount,
           payment_method: 'bank_transfer',
-          date: Math.floor(Date.now() / 1000) // timestamp(UTC) in seconds
+          date: Math.floor(Date.now() / 1000) // Chargebeee expects Unix timestamp in seconds
         } 
       })
       .setIdempotencyKey(`${invoiceId}-${amount}`)
       .request()
       .catch((error: { http_status_code?: number }) => {
+        // If the invoice is already paid, retrieve the invoice and return it
+        // This typically happens when the payment has not been recorded as "matched" in the ledger
         if (error.hasOwnProperty('http_status_code') && error['http_status_code'] === 422) {
-          if (invoiceId === 'CB1416') {
-            updateSlack = false;
-          }
+          updateSlack = false;
           return chargebee.invoice.retrieve(invoiceId).request();
         }
       }) 
-
-      // const response = await chargebee.invoice.retrieve(invoiceId).request();
 
       const customerResponse = await chargebee.customer.retrieve(response.invoice.customer_id)
         .request();

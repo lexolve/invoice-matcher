@@ -155,7 +155,7 @@ const fetchPostings = (sessionToken: string): Effect.Effect<Posting[], PostingEr
 };
 
 const program = () => pipe(
-  getDateFromToday(5),
+  getDateFromToday(1),
   Effect.flatMap(createSessionToken),
   Effect.flatMap(fetchPostings),
   Effect.flatMap(reconcileUnmatchedPostings),
