@@ -1,0 +1,101 @@
+name: Cloud Function CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # 0740 UTC every day
+    - cron: '40 7 * * *' 
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '22.x'
+        
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+
+    - name: Build
+      run: yarn build
+    
+    - name: Verify build output
+      run: |
+        ls -la dist/
+        if [ ! -f "dist/index.js" ]; then
+          echo "dist/index.js is missing!"
+          exit 1
+        fi
+
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        create_credentials_file: true
+        export_environment_variables: true
+        
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+      with:
+        project_id: ${{ secrets.PROJECT_ID }}
+      
+    - name: Deploy to Cloud
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      env:
+        PROJECT_ID: ${{ secrets.PROJECT_ID }}
+        CONSUMER_TOKEN: ${{ secrets.CONSUMER_TOKEN }}
+        EMPLOYEE_TOKEN: ${{ secrets.EMPLOYEE_TOKEN }}
+        APPNAME: ${{ secrets.APPNAME}}
+        CHARGEBEE_API_KEY: ${{ secrets.CHARGEBEE_API_KEY }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        gcloud functions deploy invoice-matcher \
+          --quiet \
+          --no-allow-unauthenticated \
+          --project=$PROJECT_ID \
+          --runtime=nodejs22 \
+          --entry-point=main \
+          --source=. \
+          --region=europe-west1 \
+          --trigger-http \
+          --set-env-vars \
+            "CONSUMER_TOKEN=$CONSUMER_TOKEN,\
+            EMPLOYEE_TOKEN=$EMPLOYEE_TOKEN,\
+            APPNAME=$APPNAME,\
+            CHARGEBEE_API_KEY=$CHARGEBEE_API_KEY,\
+            SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"
+  invoke:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          create_credentials_file: true
+          export_environment_variables: true
+        
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+        with:
+          project_id: ${{ secrets.PROJECT_ID }}
+      
+      - name: Run scheduled task
+        env:
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+        run: |
+          echo "Invoking invoice-matcher function"
+          gcloud functions call invoice-matcher \
+            --quiet \
+            --project=$PROJECT_ID \
+            --data='{}'

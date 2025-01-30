@@ -170,7 +170,7 @@ const program = () => pipe(
 
 
 
-export const myCloudFunction = async (req: Request, res: Response) => {
+export const main = async (req: Request, res: Response) => {
   try {
     await Effect.runPromise(program());
     res.status(200).send()
