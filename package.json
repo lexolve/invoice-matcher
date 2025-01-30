@@ -1,0 +1,25 @@
+{
+  "name": "tripletex-payment-consumer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./bin/index.js",
+    "dev": "node --env-file=.env -r ts-node/register ./src/index.ts"
+  },
+  "repository": "git@github.com:ole-magnus/tripletex-payment-consumer.git",
+  "author": "Ole-Magnus Røysted Aker <ole-magnus@lexolve.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.5",
+    "axios": "1.x",
+    "chargebee-typescript": "^2.44.0",
+    "date-fns": "^4.1.0",
+    "effect": "^3.12.7"
+  }
+}
