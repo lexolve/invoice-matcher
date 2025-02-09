@@ -17,3 +17,8 @@ export class InvoiceChargebeeError {
   readonly _tag = 'InvoiceChargebeeError';
   constructor (readonly error: unknown) {}
 }
+
+export class InvoiceNotFoundError {
+  readonly _tag = 'InvoiceNotFoundError';
+  constructor (readonly externalRef: string) {}
+}
