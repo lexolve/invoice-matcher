@@ -2,7 +2,7 @@ import { ChargeBee } from 'chargebee-typescript';
 import { Customer, Invoice, PaymentReferenceNumber } from 'chargebee-typescript/lib/resources';
 import { Effect } from 'effect';
 import { Brand } from "effect"
-import { InvoiceChargebeeError } from './errors';
+import { InvoiceChargebeeError, InvoiceNotFoundError } from './errors';
 import { sendFormattedSlackNotification } from './slack';
 
 const chargebee = new ChargeBee();
@@ -25,11 +25,11 @@ export const getInvoice = (externalRef: string): Effect.Effect<InvoiceId, Invoic
       }).request()
 
       if (response.list.length === 0) {
-        throw new Error(`No invoice found for external reference ${externalRef}`)
+        throw new InvoiceNotFoundError(`No invoice found for external reference ${externalRef}`)
       }
       const prn: PaymentReferenceNumber = response.list[0].payment_reference_number;
       if (!prn.invoice_id) {
-        throw new Error(`No invoice ID associated with external reference ${externalRef}`)
+        throw new InvoiceNotFoundError(`No invoice ID associated with external reference ${externalRef}`)
       }
       return InvoiceId(prn.invoice_id);
     },
@@ -43,7 +43,7 @@ export const getInvoice = (externalRef: string): Effect.Effect<InvoiceId, Invoic
 export const recordInvoicePayment = (invoiceId: string, amount: number): Effect.Effect<Invoice, InvoiceChargebeeError> =>
   Effect.tryPromise({
     try: async () => {
-      let updateSlack = true;
+      let hasRecordedPayment = false;
       const response = await chargebee.invoice.record_payment(invoiceId, {
         transaction: {
           amount,
@@ -53,12 +53,15 @@ export const recordInvoicePayment = (invoiceId: string, amount: number): Effect.
       })
       .setIdempotencyKey(`${invoiceId}-${amount}`)
       .request()
+      .then(() => {
+        hasRecordedPayment = true;
+      })
       .catch((error: { http_status_code?: number }) => {
         // If the invoice is already paid, retrieve the invoice and return it
         // This typically happens when the payment has not been recorded as "matched" in the ledger
-        if (error.hasOwnProperty('http_status_code') && error['http_status_code'] === 422) {
-          updateSlack = false;
-          return chargebee.invoice.retrieve(invoiceId).request();
+        // Both 409 and 422 status codes are used by Chargebee for this scenario
+        if (error.hasOwnProperty('http_status_code') && (error['http_status_code'] === 422 || error['http_status_code'] === 409)) {
+          return chargebee.invoice.retrieve(invoiceId).request()
         }
       }) 
 
@@ -67,15 +70,14 @@ export const recordInvoicePayment = (invoiceId: string, amount: number): Effect.
 
       const customer = customerResponse.customer as Customer
       const invoice = response.invoice as Invoice;
-      if (updateSlack) {
-        await sendFormattedSlackNotification('Invoice payment recorded (bank transfer)', {
-          'Invoice ID': invoice.id,
-          'Company': `${customer.company}`,
-          'User': `${customer.email} ${customer.phone ? `(${customer.phone})` : ''}`,
-          'Amount Paid': `${invoice.currency_code} ${Math.floor((invoice.amount_paid ?? 0)/100)}`,
-          'Amount Due': `${invoice.currency_code} ${Math.floor((invoice.amount_due ?? 0)/100)}`
-        })
-      }
+      await sendFormattedSlackNotification(
+        hasRecordedPayment ? 'Invoice payment recorded (bank transfer)' : 'Failed to record payment', {
+        'Invoice ID': invoice.id,
+        'Company': `${customer.company}`,
+        'User': `${customer.email} ${customer.phone ? `(${customer.phone})` : ''}`,
+        'Amount Paid': `${invoice.currency_code} ${Math.floor((invoice.amount_paid ?? 0)/100)}`,
+        'Amount Due': `${invoice.currency_code} ${Math.floor((invoice.amount_due ?? 0)/100)}`
+      })
       return invoice;
     },
     catch: (error) => new InvoiceChargebeeError(error)

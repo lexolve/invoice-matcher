@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Effect, pipe } from "effect"
+import { Effect, pipe, Schedule } from "effect"
 import { addDays, format } from "date-fns";
 import { TokenError, InvoiceChargebeeError, LedgerError, PostingError } from "./errors";
 import { getInvoice, recordInvoicePayment } from "./chargebee";
@@ -51,7 +51,6 @@ interface Posting {
 
 const shouldPostingBeReconciled= (posting: Posting): boolean =>
   posting.type === 'INCOMING_PAYMENT' &&
-  !posting.matched &&
   posting.externalRef?.length > 0 &&
   Math.abs(posting.amount) > 0;
 
@@ -104,17 +103,20 @@ const fetchLedger = (dateFrom: DateFormat, dateTo: DateFormat, sessionToken: str
   })
  
 const fetchPosting = (id: number, sessionToken: string) => 
-  Effect.tryPromise({
-    try: async () => {
-      const response = await axios.get(`${baseUrl}/ledger/posting/${id}`, {
-        headers: {
-          ...createAuthHeader(sessionToken)
-        }
-      });
-      return response.data.value as Posting;
-    },
-    catch: (error) => new PostingError(error)
-  })
+  pipe(
+    Effect.tryPromise({
+      try: async () => {
+        const response = await axios.get(`${baseUrl}/ledger/posting/${id}`, {
+          headers: {
+            ...createAuthHeader(sessionToken)
+          }
+        });
+        return response.data.value as Posting;
+      },
+      catch: (error) => new PostingError(error)
+    }),
+    Effect.retry(Schedule.exponential('250 millis').pipe(Schedule.intersect(Schedule.recurs(3))))
+  )
 
 const createAuthHeader = (sessionToken: string): { Authorization: string } => {
   return {
@@ -124,14 +126,14 @@ const createAuthHeader = (sessionToken: string): { Authorization: string } => {
 
 const fetchPostings = (sessionToken: string): Effect.Effect<Posting[], PostingError | LedgerError> =>
   pipe(
-    Effect.all([getDateFromToday(-1), getDateFromToday(0)]),
+    Effect.all([getDateFromToday(-1), getDateFromToday(1)]),
     Effect.flatMap(([dateFrom, dateTo]) => fetchLedger(dateFrom, dateTo, sessionToken)),
     Effect.tap((ledger: Ledger) => 
       console.log(`Fetched ledger successfully with ${ledger.values.flatMap((a) => a.postings).length} postings`)),
     Effect.map((ledger: Ledger) => 
       ledger.values.flatMap((a) => a.postings)),
     Effect.flatMap((postings: Posting[]) => 
-      Effect.all(postings.map((posting) => fetchPosting(posting.id, sessionToken)), { concurrency: 5})
+      Effect.all(postings.map((posting) => fetchPosting(posting.id, sessionToken)))
     )
   );
 
@@ -149,9 +151,13 @@ const fetchPostings = (sessionToken: string): Effect.Effect<Posting[], PostingEr
           // as INCOMING_PAYMENT postings are negative.
           Math.round(Math.abs(posting.amount) * 100)
         )
-      )
+      ),
     );
-  return Effect.all(postingsToReconcile.map(reconcilePosting));
+  return pipe(
+    Effect.all(postingsToReconcile.map(reconcilePosting), { concurrency: 2, mode: 'either' }),
+    Effect.map((invoices) => invoices.filter((invoice) => invoice._tag === 'Right').map((invoice) => invoice.right))
+  )
+
 };
 
 const program = () => pipe(
@@ -166,7 +172,7 @@ const program = () => pipe(
         ))
     ))
   )
-);
+)
 
 
 
