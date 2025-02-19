@@ -98,4 +98,5 @@ jobs:
           gcloud functions call invoice-matcher \
             --quiet \
             --project=$PROJECT_ID \
+            --region=europe-west1 \
             --data='{}'
