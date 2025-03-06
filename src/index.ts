@@ -67,7 +67,7 @@ const createSessionToken = (expirationDate: DateFormat): Effect.Effect<string, T
   Effect.tryPromise({
     try: async () => {
       const { consumerToken, employeeToken } = config;
-      const response = await axios.put(`${baseUrl}/token/session/:create`, null, {
+      const response = await axios.put(`${baseUrl}/token/session/create`, null, {
         params: {
           consumerToken,
           employeeToken,
