@@ -6,12 +6,12 @@ import { getInvoice, recordInvoicePayment } from "./chargebee";
 import { Invoice } from "chargebee-typescript/lib/resources";
 import { Request, Response } from "@google-cloud/functions-framework";
 
-const config = {
+const config = () => ({
   consumerToken: process.env.CONSUMER_TOKEN,
   employeeToken: process.env.EMPLOYEE_TOKEN,
   appname: process.env.APPNAME,
   chargebeeApiKey: process.env.CHARGEBEE_API_KEY
-}
+});
 
 const baseUrl = 'https://tripletex.no/v2';
 
@@ -66,7 +66,9 @@ const getDateFromToday = (daysDiff: number): Effect.Effect<DateFormat, never> =>
 const createSessionToken = (expirationDate: DateFormat): Effect.Effect<string, TokenError> => 
   Effect.tryPromise({
     try: async () => {
-      const { consumerToken, employeeToken } = config;
+      const { consumerToken, employeeToken } = config();
+      console.log(`consumer token is present: ${!!consumerToken}`);
+      console.log(`employee token is present: ${!!employeeToken}`);
       const fullUrl = `${baseUrl}/token/session/:create?consumerToken=${encodeURIComponent(consumerToken as string)}&employeeToken=${encodeURIComponent(employeeToken as string)}&expirationDate=${encodeURIComponent(expirationDate)}`;
       const response = await axios.put(fullUrl, null, {
         params: {
