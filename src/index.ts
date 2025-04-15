@@ -67,9 +67,7 @@ const createSessionToken = (expirationDate: DateFormat): Effect.Effect<string, T
   Effect.tryPromise({
     try: async () => {
       const { consumerToken, employeeToken } = config();
-      console.log(`consumer token is present: ${!!consumerToken}`);
-      console.log(`employee token is present: ${!!employeeToken}`);
-      const fullUrl = `${baseUrl}/token/session/:create?consumerToken=${encodeURIComponent(consumerToken as string)}&employeeToken=${encodeURIComponent(employeeToken as string)}&expirationDate=${encodeURIComponent(expirationDate)}`;
+      const fullUrl = `${baseUrl}/token/session/:create`;
       const response = await axios.put(fullUrl, null, {
         params: {
           consumerToken,
@@ -77,6 +75,7 @@ const createSessionToken = (expirationDate: DateFormat): Effect.Effect<string, T
           expirationDate
         }
       });
+      
       return response.data.value.token;
     },
     catch: (error) => new TokenError(error)
@@ -182,9 +181,11 @@ const program = () => pipe(
 export const main = async (req: Request, res: Response) => {
   try {
     await Effect.runPromise(program());
-    res.status(200).send()
+    res.status(200).send({ status: 'success' });
   } catch (error) {
-    console.error('Cloud Function Error:', error);
-    res.status(500).send('Internal Server Error');
+    res.status(500).send({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Internal Server Error'
+    });
   }
 };

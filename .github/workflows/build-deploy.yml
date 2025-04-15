@@ -67,12 +67,7 @@ jobs:
           --source=. \
           --region=europe-west1 \
           --trigger-http \
-          --set-env-vars \
-            "CONSUMER_TOKEN=$CONSUMER_TOKEN,\
-            EMPLOYEE_TOKEN=$EMPLOYEE_TOKEN,\
-            APPNAME=$APPNAME,\
-            CHARGEBEE_API_KEY=$CHARGEBEE_API_KEY,\
-            SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"
+          --set-env-vars CONSUMER_TOKEN=$CONSUMER_TOKEN,EMPLOYEE_TOKEN=$EMPLOYEE_TOKEN,APPNAME=$APPNAME,CHARGEBEE_API_KEY=$CHARGEBEE_API_KEY,SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
   invoke:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
