@@ -5,6 +5,7 @@ import { TokenError, InvoiceChargebeeError, LedgerError, PostingError } from "./
 import { getInvoice, recordInvoicePayment } from "./chargebee";
 import { Invoice } from "chargebee-typescript/lib/resources";
 import { Request, Response } from "@google-cloud/functions-framework";
+import { sendFormattedSlackNotification } from "./slack";
 
 const config = () => ({
   consumerToken: process.env.CONSUMER_TOKEN,
@@ -181,8 +182,12 @@ const program = () => pipe(
 export const main = async (req: Request, res: Response) => {
   try {
     await Effect.runPromise(program());
+    await sendFormattedSlackNotification(
+      'Successfully ran tripletex matcher job', { status: 'success' })
     res.status(200).send({ status: 'success' });
   } catch (error) {
+    await sendFormattedSlackNotification(
+      'Failed to run tripletex matcher job', { message: error instanceof Error ? error.message : 'Internal Server Error' })
     res.status(500).send({
       status: 'error',
       message: error instanceof Error ? error.message : 'Internal Server Error'
