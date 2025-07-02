@@ -163,7 +163,7 @@ const fetchPostings = (sessionToken: string): Effect.Effect<Posting[], PostingEr
 
 };
 
-const program = () => pipe(
+export const program = () => pipe(
   getDateFromToday(1),
   Effect.flatMap(createSessionToken),
   Effect.flatMap(fetchPostings),
