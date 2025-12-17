@@ -60,6 +60,7 @@ jobs:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       run: |
         gcloud functions deploy invoice-matcher \
+          --gen2 \
           --quiet \
           --no-allow-unauthenticated \
           --project=$PROJECT_ID \
