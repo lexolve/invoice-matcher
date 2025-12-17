@@ -5,15 +5,11 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  schedule:
-    # 0740 UTC every day
-    - cron: '40 7 * * *'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule'
     steps:
     - uses: actions/checkout@v3
 
@@ -70,30 +66,3 @@ jobs:
           --region=europe-west1 \
           --trigger-http \
           --set-env-vars CONSUMER_TOKEN=$CONSUMER_TOKEN,EMPLOYEE_TOKEN=$EMPLOYEE_TOKEN,APPNAME=$APPNAME,CHARGEBEE_API_KEY=$CHARGEBEE_API_KEY,SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
-  invoke:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    steps:
-      - id: 'auth'
-        name: 'Authenticate to Google Cloud'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-          create_credentials_file: true
-          export_environment_variables: true
-        
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v1'
-        with:
-          project_id: ${{ secrets.PROJECT_ID }}
-      
-      - name: Run scheduled task
-        env:
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-        run: |
-          echo "Invoking invoice-matcher function"
-          gcloud functions call invoice-matcher \
-            --quiet \
-            --project=$PROJECT_ID \
-            --region=europe-west1 \
-            --data='{}'
