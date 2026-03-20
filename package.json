@@ -20,6 +20,6 @@
     "axios": "1.x",
     "chargebee-typescript": "^2.44.0",
     "date-fns": "^4.1.0",
-    "effect": "^3.12.7"
+    "effect": "^3.20.0"
   }
 }
